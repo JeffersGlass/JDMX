@@ -381,6 +381,7 @@ class RDM_Controller : public RDM_FrameBuffer
 {
     public:
         RDM_Controller   ( uint16_t m, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, DMX_Master &master);
+        RDM_Controller   ( RDM_Uid u, DMX_Master &master);
         ~RDM_Controller  ( void );
 
         void enable ( void )    { m_rdmStatus.enabled = true;};

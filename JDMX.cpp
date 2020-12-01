@@ -1254,6 +1254,15 @@ RDM_Controller::RDM_Controller ( uint16_t m, uint8_t d1, uint8_t d2,
     m_rdmStatus.enabled = false;
 }
 
+RDM_Controller::RDM_Controller (RDM_Uid u, DMX_Master &master) : RDM_FrameBuffer ()
+{
+    __rdm_controller = this;
+    m_devid = u;
+
+    // Rdm controller is disabled by default
+    m_rdmStatus.enabled = false;
+}
+
 RDM_Controller::~RDM_Controller ( void )
 {
     __rdm_controller = NULL;
