@@ -197,6 +197,7 @@ RDM_Controller  *__rdm_controller;
 
 int8_t          __re_pin;                               // R/W Pin on shield
 int8_t          __tx_pin;                               // Separate write-enable pin if applicable
+bool            __pins_inverted;                        //True if RX is active Low and TX is active High
 
 isr::isrState   __isr_txState;                          // TX ISR state
 isr::isrState   __isr_rxState;                          // RX ISR state
@@ -290,7 +291,7 @@ uint8_t &DMX_FrameBuffer::operator[] ( uint16_t index )
 }
 
 
-DMX_Master::DMX_Master ( DMX_FrameBuffer &buffer, int readEnablePin, int transmitEnablePin)
+DMX_Master::DMX_Master ( DMX_FrameBuffer &buffer, int readEnablePin, int transmitEnablePin, bool inverted)
 : m_frameBuffer ( buffer ), 
   m_autoBreak ( 1 )                                     // Autobreak generation is default on
 {
@@ -298,6 +299,7 @@ DMX_Master::DMX_Master ( DMX_FrameBuffer &buffer, int readEnablePin, int transmi
 
     __re_pin = readEnablePin;
     __tx_pin = transmitEnablePin;
+    __pins_inverted = inverted;
 
     pinMode ( __re_pin, OUTPUT );
     if (__tx_pin > 0)
@@ -306,11 +308,15 @@ DMX_Master::DMX_Master ( DMX_FrameBuffer &buffer, int readEnablePin, int transmi
     ::SetISRMode ( isr::Disabled );
 }
 
-DMX_Master::DMX_Master ( uint16_t maxChannel, int readEnablePin , int transmitEnablePin)
+DMX_Master::DMX_Master ( uint16_t maxChannel, int readEnablePin , int transmitEnablePin, bool inverted)
 : m_frameBuffer ( maxChannel + DMX_STARTCODE_SIZE ), 
   m_autoBreak ( 1 )                                     // Autobreak generation is default on
 {
     setStartCode ( DMX_START_CODE );
+
+    __re_pin = readEnablePin;
+    __tx_pin = transmitEnablePin;
+    __pins_inverted = inverted;
 
     __re_pin = readEnablePin;
     pinMode ( __re_pin, OUTPUT );
@@ -763,8 +769,17 @@ void RDM_Responder::repondDiscUniqueBranch ( void )
     // Fix: 2017, Feb 28: Moved data enable down in order to limit line in marking state time to comply with
     // section 3.2.3 
     // Set shield to transmit mode (turn arround)
-    digitalWrite ( __re_pin, HIGH );
-    if (__tx_pin > 0) digitalWrite( __tx_pin, LOW);
+    if (!__pins_inverted)
+    {
+        digitalWrite ( __re_pin, HIGH );
+        if (__tx_pin > 0) digitalWrite( __tx_pin, LOW);
+    }
+    else
+    {
+        digitalWrite ( __re_pin, LOW );
+        if (__tx_pin > 0) digitalWrite( __tx_pin, HIGH);
+    }
+    
 
 
     for ( int i=0; i<24; i++ )
@@ -1086,10 +1101,21 @@ void SetISRMode ( isr::isrMode mode )
     }
 
     // If read enable pin is assigned
-    if (__re_pin > -1)
-        digitalWrite ( __re_pin, readEnable );
-    if (__tx_pin > -1)
-        digitalWrite (__tx_pin, !readEnable);
+    if (!__pins_inverted)
+    {
+        if (__re_pin > -1)
+            digitalWrite ( __re_pin, readEnable );
+        if (__tx_pin > -1)
+            digitalWrite (__tx_pin, !readEnable);
+    }
+    else
+    {
+            if (__re_pin > -1)
+            digitalWrite ( __re_pin, !readEnable );
+        if (__tx_pin > -1)
+            digitalWrite (__tx_pin, readEnable);
+    }
+    
 
 }
 
