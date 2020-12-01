@@ -38,7 +38,7 @@ struct RDM_Uid {
 		m_id[5]  = d4;
 	}
 
-    void Initialize_BroadcastID()
+    void Initialize_Broadcast_All()
     {
 		m_id[0]  = 0xFF;
         m_id[1]  = 0xFF;
