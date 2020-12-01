@@ -38,6 +38,16 @@ struct RDM_Uid {
 		m_id[5]  = d4;
 	}
 
+    void Initialize_BroadcastID()
+    {
+		m_id[0]  = 0xFF;
+        m_id[1]  = 0xFF;
+		m_id[2]  = 0xFF;
+		m_id[3]  = 0xFF;
+		m_id[4]  = 0xFF;
+		m_id[5]  = 0xFF;
+    }
+
     void copy ( const RDM_Uid &orig ) 
     {
 	    for ( uint8_t i = 0; i < 6; i++ )
