@@ -10,6 +10,7 @@ For information on installing libraries, see: http://arduino.cc/en/Guide/Librari
 
 *** COPYRIGHT STATEMENT ***
 
+Copyright (c) 2020 Jeff Glass <glass.jeffrey@gmail.com>. All rights reserved.
 Copyright (c) 2017 W.A. van der Meeren <danny@illogic.nl>.  All right reserved.
 
 This library is free software; you can redistribute it and/or
@@ -28,6 +29,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 CHANGE LOG:
 
+	- 30-Nov-2020: Forked by Jeff Glass
 	- 28-Feb-2017: Fixed various RDM timing issues
 	- 28-Feb-2017: Removed unwanted transmission during line turnaround (RDM)
 	- 28-Feb-2017: Updated break time to 176us to comply specs
