@@ -146,11 +146,11 @@ class DMX_Master
     public:
         // Run the DMX master from a pre allocated frame buffer which
         // you have fully under your own control
-        DMX_Master ( DMX_FrameBuffer &buffer, int readEnablePin  );
+        DMX_Master (DMX_FrameBuffer &buffer, int readEnablePin , int transmitEnablePin );
         
         // Run the DMX master by giving a predefined maximum number of
         // channels to support
-        DMX_Master ( uint16_t maxChannel, int readEnablePin );
+        DMX_Master (uint16_t maxChannel, int readEnablePin , int transmitEnablePin);
 
         ~DMX_Master ( void );
     

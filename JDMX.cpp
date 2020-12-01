@@ -196,6 +196,7 @@ RDM_Responder   *__rdm_responder;
 RDM_Controller  *__rdm_controller;
 
 int8_t          __re_pin;                               // R/W Pin on shield
+int8_t          __tx_pin;                               // Separate write-enable pin if applicable
 
 isr::isrState   __isr_txState;                          // TX ISR state
 isr::isrState   __isr_rxState;                          // RX ISR state
@@ -289,19 +290,23 @@ uint8_t &DMX_FrameBuffer::operator[] ( uint16_t index )
 }
 
 
-DMX_Master::DMX_Master ( DMX_FrameBuffer &buffer, int readEnablePin )
+DMX_Master::DMX_Master ( DMX_FrameBuffer &buffer, int readEnablePin, int transmitEnablePin)
 : m_frameBuffer ( buffer ), 
   m_autoBreak ( 1 )                                     // Autobreak generation is default on
 {
     setStartCode ( DMX_START_CODE );    
 
     __re_pin = readEnablePin;
+    __tx_pin = transmitEnablePin;
+
     pinMode ( __re_pin, OUTPUT );
+    if (__tx_pin > 0)
+        pinMode ( __tx_pin, OUTPUT);
 
     ::SetISRMode ( isr::Disabled );
 }
 
-DMX_Master::DMX_Master ( uint16_t maxChannel, int readEnablePin )
+DMX_Master::DMX_Master ( uint16_t maxChannel, int readEnablePin , int transmitEnablePin)
 : m_frameBuffer ( maxChannel + DMX_STARTCODE_SIZE ), 
   m_autoBreak ( 1 )                                     // Autobreak generation is default on
 {
@@ -309,6 +314,8 @@ DMX_Master::DMX_Master ( uint16_t maxChannel, int readEnablePin )
 
     __re_pin = readEnablePin;
     pinMode ( __re_pin, OUTPUT );
+    if (__tx_pin > 0)
+        pinMode ( __tx_pin, OUTPUT);
 
     ::SetISRMode ( isr::Disabled );
 }
@@ -405,6 +412,7 @@ DMX_Slave::DMX_Slave ( DMX_FrameBuffer &buffer, int readEnablePin )
     __dmx_slave = this;
     __re_pin    = readEnablePin;
     pinMode ( __re_pin, OUTPUT );
+    
 
     ::SetISRMode ( isr::Disabled );
 }
@@ -756,6 +764,7 @@ void RDM_Responder::repondDiscUniqueBranch ( void )
     // section 3.2.3 
     // Set shield to transmit mode (turn arround)
     digitalWrite ( __re_pin, HIGH );
+    if (__tx_pin > 0) digitalWrite( __tx_pin, LOW);
 
 
     for ( int i=0; i<24; i++ )
@@ -1079,6 +1088,8 @@ void SetISRMode ( isr::isrMode mode )
     // If read enable pin is assigned
     if (__re_pin > -1)
         digitalWrite ( __re_pin, readEnable );
+    if (__tx_pin > -1)
+        digitalWrite (__tx_pin, !readEnable);
 
 }
 
