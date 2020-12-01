@@ -26,6 +26,7 @@
 
 
 #include "pins_arduino.h"
+#include "Arduino.h"
 #include "JDMX.h"
 
 #include <inttypes.h>
