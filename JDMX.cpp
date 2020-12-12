@@ -1305,7 +1305,7 @@ RDM_Controller::~RDM_Controller ( void )
     __rdm_controller = NULL;
 }
 
-void RDM_Controller::setDMXAddress(uint16_t address, uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 0, uint8_t sub = 0)
+void RDM_Controller::setDMXAddress(uint16_t address, uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0)
 {
     m_msg.startCode = RDM_START_CODE;
     m_msg.subStartCode  = 0x01;
