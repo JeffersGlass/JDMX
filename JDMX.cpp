@@ -1169,16 +1169,16 @@ ISR (USART_TX)
         
 		break;
 
-/*    case isr::RdmBreak:
+    case isr::RdmBreak:
         DMX_UCSRA = 0x0;
         DMX_UBRRH = (unsigned char)(((F_CPU + DMX_BREAK_RATE * 8L) / (DMX_BREAK_RATE * 16L) - 1)>>8);
         DMX_UBRRL = (unsigned char) ((F_CPU + DMX_BREAK_RATE * 8L) / (DMX_BREAK_RATE * 16L) - 1);
         DMX_UDR   = 0x0;
-        
-        __isr_txState = isr::RdmStartByte;
+        if ( __isr_txState ==  isr::RdmBreak )
+            __isr_txState = isr::RdmStartByte;
         
         break;
-*/
+
 
     case isr::RdmStartByte:
         DMX_UCSRA = 0x0;
@@ -1186,15 +1186,22 @@ ISR (USART_TX)
 		DMX_UBRRL = (unsigned char) ((F_CPU + DMX_BAUD_RATE * 8L) / (DMX_BAUD_RATE * 16L) - 1);			
 
         // Write start byte
-        __rdm_responder->fetchOutgoing ( &DMX_UDR, true );
+        if (__rdm_controller != NULL) __rdm_controller->fetchOutgoing( &DMX_UDR, true );
+        else __rdm_responder->fetchOutgoing ( &DMX_UDR, true );
         __isr_txState = isr::RdmTransmitData;
 
         break;
 
     case isr::RdmTransmitData:
         // Write rest of data
-        if ( __rdm_responder->fetchOutgoing ( &DMX_UDR ) )
-            __isr_txState = isr::RDMTransmitComplete;
+        if (__rdm_controller != NULL){
+            if (__rdm_controller->fetchOutgoing (&DMX_UDR))
+                __isr_txState = isr::RDMTransmitComplete;
+        }
+        else {
+            if ( __rdm_responder->fetchOutgoing ( &DMX_UDR ) )
+                __isr_txState = isr::RDMTransmitComplete;
+        }
         break;
 
     case isr::RDMTransmitComplete:
@@ -1204,7 +1211,8 @@ ISR (USART_TX)
             SetISRMode ( isr::Receive ); 
             __isr_txState = isr::Idle; 
         }     // No tx state
-        else SetISRMode( isr::DMXTransmit ); //If we're a controller, start sending DMX??
+        else SetISRMode( isr::Disabled );
+        //else SetISRMode( isr::DMXTransmit ); //If we're a controller, start sending DMX??
         //TODO: Need different logic in order to wait for responses
         break;
     
@@ -1309,16 +1317,18 @@ void RDM_Controller::setDMXAddress(uint16_t address, uint16_t dest_m_id, uint8_t
 {
     m_msg.startCode = RDM_START_CODE;
     m_msg.subStartCode  = 0x01;
+    //see below for message length calculation
 
     m_msg.dstUid = {dest_m_id, ddid1, ddid2, ddid3, ddid4};
     m_msg.srcUid = m_devid;
 
     m_msg.TN = TN;
     m_msg.portId = port;
-    m_msg.subDevice = sub;
     m_msg.msgCount  = 0;
+    m_msg.subDevice = sub;
 
     m_msg.CC = 0x30; //set Command
+    m_msg.PID = rdm::DmxStartAddress;
     m_msg.PDL = 0x02; //Data length
     m_msg.PD[0] = (uint8_t) (address >> 8) & 0xFF;
     m_msg.PD[1] = (uint8_t) address & 0xFF;

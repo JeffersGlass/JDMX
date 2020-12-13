@@ -387,7 +387,7 @@ class RDM_Controller : public RDM_FrameBuffer
         void enable ( void )    { m_rdmStatus.enabled = true;};
         void disable ( void )   { m_rdmStatus.enabled = false; };
 
-        void setDMXAddress(uint16_t address, uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 0, uint8_t sub = 0);
+        void setDMXAddress(uint16_t address, uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0);
         void setDMXAddress(uint16_t address, RDM_Uid uid);
 
         union
