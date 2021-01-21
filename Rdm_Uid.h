@@ -48,7 +48,13 @@ struct RDM_Uid {
 		m_id[5]  = d4;
 	}
 
-    void Initialize_Broadcast_All()
+  void Initialize(long long number){
+    for (int i = 0; i < 6; i++){
+      m_id[i] = (uint8_t) number >> (8 * (5-i));
+    }
+  }
+
+  void Initialize_Broadcast_All()
     {
 		m_id[0]  = 0xFF;
     m_id[1]  = 0xFF;
@@ -56,6 +62,13 @@ struct RDM_Uid {
 		m_id[3]  = 0xFF;
 		m_id[4]  = 0xFF;
 		m_id[5]  = 0xFF;
+    }
+
+    long long longlongRep(){
+      long long value = 0;
+      for (int i = 0; i < 6; i++){
+        value += m_id[i] << (8 * (5-i));
+      }
     }
 
   void copy ( const RDM_Uid &orig ) 
@@ -113,6 +126,5 @@ struct RDM_Uid {
 
 	uint8_t   m_id[6];     //16bit manufacturer id + 32 bits device id
 };
-
 
 #endif /* RDM_UID_H_ */
