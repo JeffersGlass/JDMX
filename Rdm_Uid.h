@@ -31,7 +31,17 @@ struct RDM_Uid {
     void Initialize ( uint16_t m, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4 ) 
     {
 		m_id[0]  = ((uint8_t) (((uint16_t) (m)) >> 8));
-        m_id[1]  = (uint8_t)m; 
+    m_id[1]  = (uint8_t)m; 
+		m_id[2]  = d1;
+		m_id[3]  = d2;
+		m_id[4]  = d3;
+		m_id[5]  = d4;
+	}
+
+  void Initialize ( uint8_t m1, uint8_t m2, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4 ) 
+    {
+		m_id[0]  = m1;
+    m_id[1]  = m2;
 		m_id[2]  = d1;
 		m_id[3]  = d2;
 		m_id[4]  = d3;
@@ -41,14 +51,14 @@ struct RDM_Uid {
     void Initialize_Broadcast_All()
     {
 		m_id[0]  = 0xFF;
-        m_id[1]  = 0xFF;
+    m_id[1]  = 0xFF;
 		m_id[2]  = 0xFF;
 		m_id[3]  = 0xFF;
 		m_id[4]  = 0xFF;
 		m_id[5]  = 0xFF;
     }
 
-    void copy ( const RDM_Uid &orig ) 
+  void copy ( const RDM_Uid &orig ) 
     {
 	    for ( uint8_t i = 0; i < 6; i++ )
             m_id[i] = orig.m_id[i];
