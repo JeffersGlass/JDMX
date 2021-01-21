@@ -396,6 +396,17 @@ class RDM_Controller : public RDM_FrameBuffer
         void RDM_Controller::sendGetCommand(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t PID, uint8_t PDL, uint8_t data[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0);
         void RDM_Controller::sendGetCommand(RDM_Uid uid, uint8_t PID, uint8_t PDL, uint8_t data[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0);
 
+        void RDM_Controller::send_DISC_UNIQUE_BRANCH(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, long long bounds[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0);
+
+        void RDM_Controller::send_DISC_UNIQUE_BRANCH(RDM_Uid uid, long long bounds[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0);
+
+        void RDM_Controller::send_DISC_MUTE(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0);
+
+        void RDM_Controller::send_DISC_MUTE(RDM_Uid uid, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0);
+
+        void RDM_Controller::send_DISC_UN_MUTE(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0);
+
+        void RDM_Controller::send_DISC_UN_MUTE(RDM_Uid uid, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0);
 
         //void setDMXAddress(uint16_t address, uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0);
         //void setDMXAddress(uint16_t address, RDM_Uid uid);
@@ -416,6 +427,8 @@ class RDM_Controller : public RDM_FrameBuffer
     private:
         RDM_Uid                     m_devid;
         bool                        needs_to_send;
+        bool                        needs_response;
+        uint32_t                    last_transmit_time;
 };
 
 

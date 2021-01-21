@@ -182,6 +182,7 @@ namespace isr
     {
         Disabled,
         Receive,
+        ReceiveRDMResponse,
         DMXTransmit,
         DMXTransmitManual,  /* Manual break... */
         RDMTransmit,
@@ -1343,6 +1344,13 @@ void RDM_Controller::sendRawCommand(uint16_t dest_m_id, uint8_t ddid1,  uint8_t 
     m_msg.msgLength     = RDM_HDR_LEN + m_msg.PDL;
     
     needs_to_send = true;
+    if (!m_msg.dstUid.isBroadcast (m_devid.m_id)){
+        needs_response = true;
+    }
+    else{
+        needs_response = false;
+    }
+    
 
     //SetISRMode ( isr::RDMTransmit);
 }
@@ -1361,12 +1369,50 @@ void RDM_Controller::sendSetCommand(RDM_Uid uid, uint8_t PID, uint8_t PDL, uint8
 }
 
 void RDM_Controller::sendGetCommand(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t PID, uint8_t PDL, uint8_t data[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
-    sendRawCommand(dest_m_id, ddid1, ddid2, ddid3, ddid4, rdm::GetCommand, PI, PDL, data, TN, port, sub);
+    sendRawCommand(dest_m_id, ddid1, ddid2, ddid3, ddid4, rdm::GetCommand, PID, PDL, data, TN, port, sub);
 }
 
 void RDM_Controller::sendGetCommand(RDM_Uid uid, uint8_t PID, uint8_t PDL, uint8_t data[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
     sendRawCommand(uid, rdm::GetCommand, PI, PDL, data, TN, port, sub);
 }
+
+//Individual message send commands below:
+
+///Send the DISC_UNIQUE_BRANCH method - bounds is an array of type long long of length 2, containing [lower, upper] bounds
+void RDM_Controller::send_DISC_UNIQUE_BRANCH(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, long long bounds[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    uint8_t *data_pointer = (uint8_t *)&bounds;
+    uint8_t data_bounds[16];
+    for(int i = 0; i < 16; i++) {
+        data_bounds[i] = data_pointer[i];
+    }
+    sendRawCommand(dest_m_id, ddid1, ddid2, ddid3, ddid4, rdm::DiscoveryCommand, rdm::DiscUniqueBranch, 0x0C, data_bounds, TN, port, sub);
+}
+
+void RDM_Controller::send_DISC_UNIQUE_BRANCH(RDM_Uid uid, long long bounds[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    uint8_t *data_pointer = (uint8_t *)&bounds;
+    uint8_t data_bounds[16];
+    for(int i = 0; i < 16; i++) {
+        data_bounds[i] = data_pointer[i];
+    }
+    sendRawCommand(uid, rdm::DiscoveryCommand, rdm::DiscUniqueBranch, 0x0C, data_bounds, TN, port, sub);
+}
+
+void RDM_Controller::send_DISC_MUTE(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    sendRawCommand(dest_m_id, ddid1, ddid2, ddid3, ddid4, rdm::DiscoveryCommand, rdm::DiscMute, 0x00, NULL, TN, port, sub);
+}
+
+void RDM_Controller::send_DISC_MUTE(RDM_Uid uid, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    sendRawCommand(uid, rdm::DiscoveryCommand, rdm::DiscMute, 0x00, NULL, TN, port, sub);
+}
+
+void RDM_Controller::send_DISC_UN_MUTE(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    sendRawCommand(dest_m_id, ddid1, ddid2, ddid3, ddid4, rdm::DiscoveryCommand, rdm::DiscUnMute, 0x00, NULL, TN, port, sub);
+}
+
+void RDM_Controller::send_DISC_UN_MUTE(RDM_Uid uid, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    sendRawCommand(uid, rdm::DiscoveryCommand, rdm::DiscUnMute, 0x00, NULL, TN, port, sub);
+}
+
 
 /*
 void RDM_Controller::setDMXAddress(uint16_t address, uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0)
