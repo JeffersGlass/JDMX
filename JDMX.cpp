@@ -28,6 +28,7 @@
 #include "pins_arduino.h"
 #include "Arduino.h"
 #include "JDMX.h"
+#include "Device.h"
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -524,7 +525,6 @@ bool DMX_Slave::processIncoming ( uint8_t val, bool first )
 
     return rval;
 }
-
 
 uint16_t RDM_FrameBuffer::getBufferSize ( void ) { return sizeof ( m_msg ); }   
 
@@ -1087,17 +1087,10 @@ void SetISRMode ( isr::isrMode mode )
             break;
 
         case isr::RDMTransmit:
-            DMX_UCSRA = 0x0;
-            DMX_UBRRH = (unsigned char)(((F_CPU + DMX_BREAK_RATE * 8L) / (DMX_BREAK_RATE * 16L) - 1)>>8);
-            DMX_UBRRL = (unsigned char) ((F_CPU + DMX_BREAK_RATE * 8L) / (DMX_BREAK_RATE * 16L) - 1);
-            DMX_UDR   = 0x0;
-  
-            //DMX_UBRRH       = (unsigned char)(((F_CPU + DMX_BAUD_RATE * 8L) / (DMX_BAUD_RATE * 16L) - 1)>>8);
-            //DMX_UBRRL       = (unsigned char) ((F_CPU + DMX_BAUD_RATE * 8L) / (DMX_BAUD_RATE * 16L) - 1);   
-            DMX_UCSRB       = (1<<DMX_TXEN) | (1<<DMX_TXCIE);
-            //DMX_UDR         = 0x00;
+            DMX_UDR         = 0x0; 
             readEnable      = HIGH;
             __isr_txState   = isr::RdmBreak; 
+            DMX_UCSRB       = (1<<DMX_TXEN) | (1<<DMX_TXCIE);
             break;
     }
 
@@ -1378,23 +1371,18 @@ void RDM_Controller::sendGetCommand(RDM_Uid uid, uint8_t PID, uint8_t PDL, uint8
 
 //Individual message send commands below:
 
-///Send the DISC_UNIQUE_BRANCH method - bounds is an array of type long long of length 2, containing [lower, upper] bounds
-void RDM_Controller::send_DISC_UNIQUE_BRANCH(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, long long bounds[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
-    uint8_t *data_pointer = (uint8_t *)&bounds;
-    uint8_t data_bounds[16];
-    for(int i = 0; i < 16; i++) {
-        data_bounds[i] = data_pointer[i];
+void RDM_Controller::send_DISC_UNIQUE_BRANCH(RDM_Uid lowerBound, RDM_Uid upperBound, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    uint8_t data[12];
+    for (int i = 0; i < 6; i++){
+        data[i] = (uint8_t) (lowerBound.longlongRep() >> (5-i));
     }
-    sendRawCommand(dest_m_id, ddid1, ddid2, ddid3, ddid4, rdm::DiscoveryCommand, rdm::DiscUniqueBranch, 0x0C, data_bounds, TN, port, sub);
-}
+    for (int i = 0; i < 6; i++){
+        data[i+6] = (uint8_t) (upperBound.longlongRep() >> (5-i));
+    }
 
-void RDM_Controller::send_DISC_UNIQUE_BRANCH(RDM_Uid uid, long long bounds[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
-    uint8_t *data_pointer = (uint8_t *)&bounds;
-    uint8_t data_bounds[16];
-    for(int i = 0; i < 16; i++) {
-        data_bounds[i] = data_pointer[i];
-    }
-    sendRawCommand(uid, rdm::DiscoveryCommand, rdm::DiscUniqueBranch, 0x0C, data_bounds, TN, port, sub);
+    RDM_Uid allIDs;
+    allIDs.Initialize_Broadcast_All();
+    sendRawCommand(allIDs, rdm::DiscoveryCommand, rdm::DiscUniqueBranch, 0x0C, data, TN, port, sub);
 }
 
 void RDM_Controller::send_DISC_MUTE(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
@@ -1413,6 +1401,45 @@ void RDM_Controller::send_DISC_UN_MUTE(RDM_Uid uid, uint8_t TN = 0, uint8_t port
     sendRawCommand(uid, rdm::DiscoveryCommand, rdm::DiscUnMute, 0x00, NULL, TN, port, sub);
 }
 
+//Useful procedures and pairs of messages:
+bool RDM_Controller::findDevices(RDM_Uid lowerBound, RDM_Uid upperBound){
+    long long midPosition;
+    Device devicesFound[12];
+
+    if (lowerBound == upperBound){ //only 1 device address left
+        int attempts = 0;
+        do{
+            send_DISC_MUTE(lowerBound);
+            attempts++;
+        } while (attempts < 10); //TODO Or while there is no response
+
+        if (false) { //TODO if response received
+            //TODO Add device that responded to the devices list
+        }
+    }
+    else {
+        int attempts = 0;
+        do{
+            send_DISC_UNIQUE_BRANCH(lowerBound, upperBound);
+        } while (attempts < 3); //TODO or while there is no response
+
+        if (false){ //TODO if response received
+            if (false){ //device checksum valid, only single device
+                //DeviceFound = quickFind();
+            }
+            else{
+                midPosition = (long long)(lowerBound.longlongRep() + upperBound.longlongRep())/2;
+                RDM_Uid midUID;
+                midUID.Initialize(midPosition);
+                RDM_Uid midUIDInc;
+                midUIDInc.Initialize(midPosition + 1);
+                //Add devices from lower half
+                //Add devices from upper half
+
+            }
+        }
+    }
+}
 
 /*
 void RDM_Controller::setDMXAddress(uint16_t address, uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0)
