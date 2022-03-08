@@ -1,5 +1,5 @@
 /*
-  Conceptinetics.cpp - DMX library for Arduino
+  JDMX.cpp - DMX library for Arduino
   Copyright (c) 2013 W.A. van der Meeren <danny@illogic.nl>.  All right reserved.
 
   This library is free software; you can redistribute it and/or
@@ -834,7 +834,7 @@ void RDM_Responder::populateDeviceInfo ( void )
     m_msg.PDL = sizeof (RDM__DeviceInfoPD);
 }
 
-const uint8_t ManufacturerLabel_P[] PROGMEM = "Conceptinetics"; 
+const uint8_t ManufacturerLabel_P[] PROGMEM = "JDMX"; 
 
 void RDM_Responder::processFrame ( void )
 {
