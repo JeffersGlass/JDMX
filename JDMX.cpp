@@ -28,6 +28,7 @@
 #include "pins_arduino.h"
 #include "Arduino.h"
 #include "JDMX.h"
+#include "Device.h"
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -182,6 +183,7 @@ namespace isr
     {
         Disabled,
         Receive,
+        ReceiveRDMResponse,
         DMXTransmit,
         DMXTransmitManual,  /* Manual break... */
         RDMTransmit,
@@ -523,7 +525,6 @@ bool DMX_Slave::processIncoming ( uint8_t val, bool first )
 
     return rval;
 }
-
 
 uint16_t RDM_FrameBuffer::getBufferSize ( void ) { return sizeof ( m_msg ); }   
 
@@ -1086,17 +1087,10 @@ void SetISRMode ( isr::isrMode mode )
             break;
 
         case isr::RDMTransmit:
-            DMX_UCSRA = 0x0;
-            DMX_UBRRH = (unsigned char)(((F_CPU + DMX_BREAK_RATE * 8L) / (DMX_BREAK_RATE * 16L) - 1)>>8);
-            DMX_UBRRL = (unsigned char) ((F_CPU + DMX_BREAK_RATE * 8L) / (DMX_BREAK_RATE * 16L) - 1);
-            DMX_UDR   = 0x0;
-  
-            //DMX_UBRRH       = (unsigned char)(((F_CPU + DMX_BAUD_RATE * 8L) / (DMX_BAUD_RATE * 16L) - 1)>>8);
-            //DMX_UBRRL       = (unsigned char) ((F_CPU + DMX_BAUD_RATE * 8L) / (DMX_BAUD_RATE * 16L) - 1);   
-            DMX_UCSRB       = (1<<DMX_TXEN) | (1<<DMX_TXCIE);
-            //DMX_UDR         = 0x00;
+            DMX_UDR         = 0x0; 
             readEnable      = HIGH;
-            __isr_txState   = isr::RdmStartByte; 
+            __isr_txState   = isr::RdmBreak; 
+            DMX_UCSRB       = (1<<DMX_TXEN) | (1<<DMX_TXCIE);
             break;
     }
 
@@ -1161,7 +1155,9 @@ ISR (USART_TX)
 		// Send 512 channels
 		if ( current_slot >= DMX_MAX_FRAMESIZE )
         {
-		    if ( __dmx_master->autoBreakEnabled () )
+            if (__rdm_controller && __rdm_controller->getSendFlag())
+                __isr_txState = isr::RdmBreak;
+		    else if ( __dmx_master->autoBreakEnabled () )
                 __isr_txState = isr::DmxBreak;
             else
                 SetISRMode ( isr::DMXTransmitManual );
@@ -1169,16 +1165,16 @@ ISR (USART_TX)
         
 		break;
 
-/*    case isr::RdmBreak:
+    case isr::RdmBreak:
         DMX_UCSRA = 0x0;
         DMX_UBRRH = (unsigned char)(((F_CPU + DMX_BREAK_RATE * 8L) / (DMX_BREAK_RATE * 16L) - 1)>>8);
         DMX_UBRRL = (unsigned char) ((F_CPU + DMX_BREAK_RATE * 8L) / (DMX_BREAK_RATE * 16L) - 1);
         DMX_UDR   = 0x0;
-        
-        __isr_txState = isr::RdmStartByte;
+        if ( __isr_txState ==  isr::RdmBreak )
+            __isr_txState = isr::RdmStartByte;
         
         break;
-*/
+
 
     case isr::RdmStartByte:
         DMX_UCSRA = 0x0;
@@ -1186,15 +1182,22 @@ ISR (USART_TX)
 		DMX_UBRRL = (unsigned char) ((F_CPU + DMX_BAUD_RATE * 8L) / (DMX_BAUD_RATE * 16L) - 1);			
 
         // Write start byte
-        __rdm_responder->fetchOutgoing ( &DMX_UDR, true );
+        if (__rdm_controller != NULL) __rdm_controller->fetchOutgoing( &DMX_UDR, true );
+        else __rdm_responder->fetchOutgoing ( &DMX_UDR, true );
         __isr_txState = isr::RdmTransmitData;
 
         break;
 
     case isr::RdmTransmitData:
         // Write rest of data
-        if ( __rdm_responder->fetchOutgoing ( &DMX_UDR ) )
-            __isr_txState = isr::RDMTransmitComplete;
+        if (__rdm_controller != NULL){
+            if (__rdm_controller->fetchOutgoing (&DMX_UDR))
+                __isr_txState = isr::RDMTransmitComplete;
+        }
+        else {
+            if ( __rdm_responder->fetchOutgoing ( &DMX_UDR ) )
+                __isr_txState = isr::RDMTransmitComplete;
+        }
         break;
 
     case isr::RDMTransmitComplete:
@@ -1204,7 +1207,12 @@ ISR (USART_TX)
             SetISRMode ( isr::Receive ); 
             __isr_txState = isr::Idle; 
         }     // No tx state
-        else SetISRMode( isr::DMXTransmit ); //If we're a controller, start sending DMX??
+        else
+        {
+            __rdm_controller->setSendFlag(false);
+            SetISRMode( isr::DMXTransmit );
+        }
+        //else SetISRMode( isr::DMXTransmit ); //If we're a controller, start sending DMX??
         //TODO: Need different logic in order to wait for responses
         break;
     
@@ -1289,6 +1297,7 @@ RDM_Controller::RDM_Controller ( uint16_t m, uint8_t d1, uint8_t d2,
 
     // Rdm controller is disabled by default
     m_rdmStatus.enabled = false;
+    needs_to_send = false;
 }
 
 RDM_Controller::RDM_Controller (RDM_Uid u, DMX_Master &master) : RDM_FrameBuffer ()
@@ -1305,20 +1314,150 @@ RDM_Controller::~RDM_Controller ( void )
     __rdm_controller = NULL;
 }
 
-void RDM_Controller::setDMXAddress(uint16_t address, uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 0, uint8_t sub = 0)
+void RDM_Controller::sendRawCommand(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t CC, uint8_t PID, uint8_t PDL, uint8_t data[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0)
 {
     m_msg.startCode = RDM_START_CODE;
     m_msg.subStartCode  = 0x01;
+    //see below for message length calculation
 
-    m_msg.dstUid = {dest_m_id, ddid1, ddid2, ddid3, ddid4};
+    m_msg.dstUid = {(dest_m_id >> 8) & 0xFF, dest_m_id & 0xFF, ddid1, ddid2, ddid3, ddid4};
     m_msg.srcUid = m_devid;
 
     m_msg.TN = TN;
     m_msg.portId = port;
-    m_msg.subDevice = sub;
     m_msg.msgCount  = 0;
+    m_msg.subDevice = sub;
+
+    m_msg.CC = CC;
+    m_msg.PID = PID;
+    m_msg.PDL = PDL;
+    for (int i=0; i<PDL;i++)
+        m_msg.PD[i] = data[i];
+
+    m_msg.msgLength     = RDM_HDR_LEN + m_msg.PDL;
+    
+    needs_to_send = true;
+    if (!m_msg.dstUid.isBroadcast (m_devid.m_id)){
+        needs_response = true;
+    }
+    else{
+        needs_response = false;
+    }
+    
+
+    //SetISRMode ( isr::RDMTransmit);
+}
+
+void RDM_Controller::sendRawCommand(RDM_Uid uid, uint8_t CC, uint8_t PID, uint8_t PDL, uint8_t data[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0)
+{
+    sendRawCommand((((uint16_t) uid.m_id[0]) << 8) | uid.m_id[1], uid.m_id[2], uid.m_id[3], uid.m_id[4], uid.m_id[5], CC, PID, PDL, data, TN, port, sub);
+}
+
+void RDM_Controller::sendSetCommand(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t PID, uint8_t PDL, uint8_t data[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    sendRawCommand(dest_m_id, ddid1, ddid2, ddid3, ddid4, rdm::SetCommand, PI, PDL, data, TN, port, sub);
+}
+
+void RDM_Controller::sendSetCommand(RDM_Uid uid, uint8_t PID, uint8_t PDL, uint8_t data[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    sendRawCommand(uid, rdm::SetCommand, PI, PDL, data, TN, port, sub);
+}
+
+void RDM_Controller::sendGetCommand(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t PID, uint8_t PDL, uint8_t data[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    sendRawCommand(dest_m_id, ddid1, ddid2, ddid3, ddid4, rdm::GetCommand, PID, PDL, data, TN, port, sub);
+}
+
+void RDM_Controller::sendGetCommand(RDM_Uid uid, uint8_t PID, uint8_t PDL, uint8_t data[], uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    sendRawCommand(uid, rdm::GetCommand, PI, PDL, data, TN, port, sub);
+}
+
+//Individual message send commands below:
+
+void RDM_Controller::send_DISC_UNIQUE_BRANCH(RDM_Uid lowerBound, RDM_Uid upperBound, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    uint8_t data[12];
+    for (int i = 0; i < 6; i++){
+        data[i] = (uint8_t) (lowerBound.longlongRep() >> (5-i));
+    }
+    for (int i = 0; i < 6; i++){
+        data[i+6] = (uint8_t) (upperBound.longlongRep() >> (5-i));
+    }
+
+    RDM_Uid allIDs;
+    allIDs.Initialize_Broadcast_All();
+    sendRawCommand(allIDs, rdm::DiscoveryCommand, rdm::DiscUniqueBranch, 0x0C, data, TN, port, sub);
+}
+
+void RDM_Controller::send_DISC_MUTE(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    sendRawCommand(dest_m_id, ddid1, ddid2, ddid3, ddid4, rdm::DiscoveryCommand, rdm::DiscMute, 0x00, NULL, TN, port, sub);
+}
+
+void RDM_Controller::send_DISC_MUTE(RDM_Uid uid, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    sendRawCommand(uid, rdm::DiscoveryCommand, rdm::DiscMute, 0x00, NULL, TN, port, sub);
+}
+
+void RDM_Controller::send_DISC_UN_MUTE(uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    sendRawCommand(dest_m_id, ddid1, ddid2, ddid3, ddid4, rdm::DiscoveryCommand, rdm::DiscUnMute, 0x00, NULL, TN, port, sub);
+}
+
+void RDM_Controller::send_DISC_UN_MUTE(RDM_Uid uid, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0){
+    sendRawCommand(uid, rdm::DiscoveryCommand, rdm::DiscUnMute, 0x00, NULL, TN, port, sub);
+}
+
+//Useful procedures and pairs of messages:
+bool RDM_Controller::findDevices(RDM_Uid lowerBound, RDM_Uid upperBound){
+    long long midPosition;
+    Device devicesFound[12];
+
+    if (lowerBound == upperBound){ //only 1 device address left
+        int attempts = 0;
+        do{
+            send_DISC_MUTE(lowerBound);
+            attempts++;
+        } while (attempts < 10); //TODO Or while there is no response
+
+        if (false) { //TODO if response received
+            //TODO Add device that responded to the devices list
+        }
+    }
+    else {
+        int attempts = 0;
+        do{
+            send_DISC_UNIQUE_BRANCH(lowerBound, upperBound);
+        } while (attempts < 3); //TODO or while there is no response
+
+        if (false){ //TODO if response received
+            if (false){ //device checksum valid, only single device
+                //DeviceFound = quickFind();
+            }
+            else{
+                midPosition = (long long)(lowerBound.longlongRep() + upperBound.longlongRep())/2;
+                RDM_Uid midUID;
+                midUID.Initialize(midPosition);
+                RDM_Uid midUIDInc;
+                midUIDInc.Initialize(midPosition + 1);
+                //Add devices from lower half
+                //Add devices from upper half
+
+            }
+        }
+    }
+}
+
+/*
+void RDM_Controller::setDMXAddress(uint16_t address, uint16_t dest_m_id, uint8_t ddid1,  uint8_t ddid2, uint8_t ddid3, uint8_t ddid4, uint8_t TN = 0, uint8_t port = 1, uint8_t sub = 0)
+{
+    m_msg.startCode = RDM_START_CODE;
+    m_msg.subStartCode  = 0x01;
+    //see below for message length calculation
+
+    m_msg.dstUid = {(dest_m_id >> 8) & 0xFF, dest_m_id & 0xFF, ddid1, ddid2, ddid3, ddid4};
+    m_msg.srcUid = m_devid;
+
+    m_msg.TN = TN;
+    m_msg.portId = port;
+    m_msg.msgCount  = 0;
+    m_msg.subDevice = sub;
 
     m_msg.CC = 0x30; //set Command
+    m_msg.PID = rdm::DmxStartAddress;
     m_msg.PDL = 0x02; //Data length
     m_msg.PD[0] = (uint8_t) (address >> 8) & 0xFF;
     m_msg.PD[1] = (uint8_t) address & 0xFF;
@@ -1329,9 +1468,20 @@ void RDM_Controller::setDMXAddress(uint16_t address, uint16_t dest_m_id, uint8_t
 }
 
 void RDM_Controller::setDMXAddress(uint16_t address, RDM_Uid uid){
-    setDMXAddress(address, (uint16_t)(uid.m_id[0] << 8) & uid.m_id[1], uid.m_id[2], uid.m_id[3], uid.m_id[4], uid.m_id[5]);
+    setDMXAddress(address, (((uint16_t) uid.m_id[0]) << 8) | uid.m_id[1], uid.m_id[2], uid.m_id[3], uid.m_id[4], uid.m_id[5]);
 }
+*/
 
 void RDM_Controller::processFrame ( void )
 {
+}
+
+bool RDM_Controller::getSendFlag( void )
+{
+    return needs_to_send;
+}
+
+bool RDM_Controller::setSendFlag( bool status)
+{
+    needs_to_send = status;
 }
