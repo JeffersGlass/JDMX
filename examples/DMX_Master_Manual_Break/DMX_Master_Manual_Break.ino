@@ -18,7 +18,7 @@
 */
 
 
-#include <Conceptinetics.h>
+#include <JDMX.h>
 
 //
 // When configuring a DMX_Master it will normally automaticly

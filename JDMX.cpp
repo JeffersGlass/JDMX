@@ -1,5 +1,5 @@
 /*
-  Conceptinetics.cpp - DMX library for Arduino
+  JDMX.cpp - DMX library for Arduino
   Copyright (c) 2013 W.A. van der Meeren <danny@illogic.nl>.  All right reserved.
 
   This library is free software; you can redistribute it and/or
